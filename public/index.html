@@ -41,7 +41,7 @@
 
   <div class="status">
     <p id="temp">온도: - °C</p>
-    <p id="ac">에어컨: OFF</p>
+    <p id="ac">에어컨: -</p>
     <p id="seatUsed">착석: -</p>
     <p id="alarm">알람: -</p>
     <p id="reserved">예약 상태: -</p>
@@ -54,14 +54,25 @@
       const data = await res.json();
       const { state } = data;
 
-      document.getElementById('temp').textContent =
-        `온도: ${state.temperature ?? '-'} °C`;
-      document.getElementById('ac').textContent =
-        `에어컨: ${state.acOn ? 'ON' : 'OFF'}`;
-      document.getElementById('seatUsed').textContent =
-        `착석: ${state.seatUsed === null ? '-' : (state.seatUsed ? '착석 중' : '자리 비움')}`;
-      document.getElementById('alarm').textContent =
-        `알람: ${state.alarm ? '⚠️ 활성화' : '비활성'}`;
+      // ✅ seatReserved가 false면 값 표시를 "-"로 변경
+      if (!state.seatReserved) {
+        document.getElementById('temp').textContent = "온도: - °C";
+        document.getElementById('ac').textContent = "에어컨: -";
+        document.getElementById('seatUsed').textContent = "착석: -";
+        document.getElementById('alarm').textContent = "알람: -";
+      } else {
+        // seatReserved가 true일 때는 정상 표시
+        document.getElementById('temp').textContent =
+          `온도: ${state.temperature ?? '-'} °C`;
+        document.getElementById('ac').textContent =
+          `에어컨: ${state.acOn ? 'ON' : 'OFF'}`;
+        document.getElementById('seatUsed').textContent =
+          `착석: ${state.seatUsed === null ? '-' : (state.seatUsed ? '착석 중' : '자리 비움')}`;
+        document.getElementById('alarm').textContent =
+          `알람: ${state.alarm ? '⚠️ 활성화' : '비활성'}`;
+      }
+
+      // 예약 상태는 항상 표시
       document.getElementById('reserved').textContent =
         `예약 상태: ${state.seatReserved ? '예약됨 ✅' : '미예약 ❌'}`;
 
