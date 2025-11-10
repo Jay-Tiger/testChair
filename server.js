@@ -117,5 +117,6 @@ app.get('/api/status', (req, res) => {
 // 4. 서버 실행
 // ---------------------------
 app.listen(PORT, () => {
-  console.log(`✅ testChair server is running on http://localhost:${PORT}`);
+  console.log(`✅ testChair server is running on port ${PORT}`);
 });
+
