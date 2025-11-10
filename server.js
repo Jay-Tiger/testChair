@@ -49,12 +49,22 @@ function handleSeatChange(seatUsed) {
   if (!seatUsed) {
     state.alarm = false;
     state.seatTimeoutId = setTimeout(() => {
-      if (state.seatUsed === false) state.alarm = true;
+      if (state.seatUsed === false) {
+        state.alarm = true;
+
+        // ✅ 5분 이상 비어 있으면 seatReserved 자동 해제
+        const absenceDuration = (Date.now() - state.lastSeatChange) / 60000; // 분 단위 계산
+        if (absenceDuration >= 5 && state.seatReserved === true) {
+          state.seatReserved = false;
+          console.log("⏰ 5분 이상 비어 있음 → seatReserved 자동 해제됨");
+        }
+      }
     }, config.absenceAlarmMinutes * 60 * 1000);
   } else {
     state.alarm = false;
   }
 }
+
 
 // ---------------------------
 // 3. 라우팅
