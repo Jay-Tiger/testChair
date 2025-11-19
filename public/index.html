@@ -4,16 +4,76 @@
   <meta charset="UTF-8" />
   <title>testChair 메뉴</title>
   <style>
-    body { font-family: sans-serif; text-align: center; margin-top: 80px; }
-    a { display: inline-block; margin: 12px; padding: 12px 20px; border-radius: 8px; text-decoration: none; background:#007bff; color:#fff; }
+    body { font-family: sans-serif; text-align: center; margin-top: 60px; background:#f4f4f4; }
+    h1 { margin-bottom: 10px; }
+    .links a {
+      display: inline-block;
+      margin: 12px;
+      padding: 12px 20px;
+      border-radius: 8px;
+      text-decoration: none;
+      background:#007bff;
+      color:#fff;
+    }
+    .card {
+      display:inline-block;
+      background:#fff;
+      padding:16px 22px;
+      border-radius:10px;
+      box-shadow:0 2px 6px rgba(0,0,0,.1);
+      margin-top: 20px;
+      text-align:left;
+    }
+    p { margin:6px 0; }
+    .alarm-on { color:#d9534f; font-weight:bold; }
+    .alarm-off { color:#555; }
   </style>
 </head>
 <body>
   <h1>testChair 메뉴</h1>
-  <p>원하는 페이지를 선택하세요.</p>
-  <p>
+  <div class="links">
     <a href="/temperature">온도/착석 상태 페이지</a>
     <a href="/reservation">좌석 예약 페이지</a>
-  </p>
+  </div>
+
+  <div class="card">
+    <p id="reserved">예약 상태: -</p>
+    <p id="alarm">알람: -</p>
+    <p id="alarmMessage"></p>
+  </div>
+
+  <script>
+    async function fetchStatus() {
+      try {
+        const res = await fetch('/api/status');
+        const data = await res.json();
+        const { state } = data;
+
+        const reservedEl = document.getElementById('reserved');
+        const alarmEl = document.getElementById('alarm');
+        const alarmMsgEl = document.getElementById('alarmMessage');
+
+        reservedEl.textContent =
+          `예약 상태: ${state.seatReserved ? '예약됨 ✅' : '미예약 ❌'}`;
+
+        if (state.alarm && state.seatReserved) {
+          alarmEl.textContent = '알람: 활성화 ⚠️';
+          alarmEl.className = 'alarm-on';
+          alarmMsgEl.textContent = '자리에 착석해주세요.';
+        } else {
+          alarmEl.textContent = '알람: 비활성';
+          alarmEl.className = 'alarm-off';
+          alarmMsgEl.textContent = '';
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    window.addEventListener('load', () => {
+      fetchStatus();
+      setInterval(fetchStatus, 2000);
+    });
+  </script>
 </body>
 </html>
