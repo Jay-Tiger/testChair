@@ -4,13 +4,40 @@
   <meta charset="UTF-8" />
   <title>좌석 예약</title>
   <style>
-    body { font-family: sans-serif; text-align: center; margin-top: 60px; background:#f4f4f4; }
-    .card { display:inline-block; background:#fff; padding:18px 24px; border-radius:12px; box-shadow:0 2px 8px rgba(0,0,0,.1); text-align:left; }
+    body {
+      font-family: sans-serif;
+      text-align: center;
+      margin-top: 60px;
+      background:#f4f4f4;
+    }
+    .card {
+      display:inline-block;
+      background:#fff;
+      padding:18px 24px;
+      border-radius:12px;
+      box-shadow:0 2px 8px rgba(0,0,0,.1);
+      text-align:left;
+    }
     p { margin:8px 0; }
     .on { color:#d9534f; font-weight:bold; }
     .off { color:#5cb85c; font-weight:bold; }
-    button { margin-top: 16px; padding: 10px 18px; border:0; border-radius:8px; background:#007bff; color:#fff; cursor:pointer; }
-    a { display:inline-block; margin-top:16px; text-decoration:none; color:#007bff; }
+    .alarm-on { color:#d9534f; font-weight:bold; }
+    .alarm-off { color:#555; }
+    button {
+      margin-top: 16px;
+      padding: 10px 18px;
+      border:0;
+      border-radius:8px;
+      background:#007bff;
+      color:#fff;
+      cursor:pointer;
+    }
+    a {
+      display:inline-block;
+      margin-top:16px;
+      text-decoration:none;
+      color:#007bff;
+    }
   </style>
 </head>
 <body>
@@ -18,21 +45,45 @@
   <div class="card">
     <p id="reserved">예약 상태: -</p>
     <button id="toggleBtn">예약 ON/OFF</button>
+    <hr />
+    <p id="alarm">알람: -</p>
+    <p id="alarmMessage"></p>
   </div>
-  <p><a href="/">← 메뉴로</a> | <a href="/temperature">온도/착석 페이지로 →</a></p>
+  <p>
+    <a href="/">← 메뉴로</a> |
+    <a href="/temperature">온도/착석 페이지로 →</a>
+  </p>
 
   <script>
     async function refresh() {
-      const res = await fetch('/api/status');
-      const data = await res.json();
-      const { state } = data;
+      try {
+        const res = await fetch('/api/status');
+        const data = await res.json();
+        const { state } = data;
 
-      const el = document.getElementById('reserved');
-      el.textContent = `예약 상태: ${state.seatReserved ? '예약됨 ✅' : '미예약 ❌'}`;
-      el.className = state.seatReserved ? 'on' : 'off';
+        const reservedEl = document.getElementById('reserved');
+        const alarmEl = document.getElementById('alarm');
+        const alarmMsgEl = document.getElementById('alarmMessage');
+        const btn = document.getElementById('toggleBtn');
 
-      const btn = document.getElementById('toggleBtn');
-      btn.textContent = state.seatReserved ? '예약 해제하기' : '예약 걸기';
+        reservedEl.textContent =
+          `예약 상태: ${state.seatReserved ? '예약됨 ✅' : '미예약 ❌'}`;
+        reservedEl.className = state.seatReserved ? 'on' : 'off';
+
+        btn.textContent = state.seatReserved ? '예약 해제하기' : '예약 걸기';
+
+        if (state.seatReserved && state.alarm) {
+          alarmEl.textContent = '알람: 활성화 ⚠️';
+          alarmEl.className   = 'alarm-on';
+          alarmMsgEl.textContent = '자리에 착석해주세요.';
+        } else {
+          alarmEl.textContent = '알람: 비활성';
+          alarmEl.className   = 'alarm-off';
+          alarmMsgEl.textContent = '';
+        }
+      } catch (e) {
+        console.error(e);
+      }
     }
 
     async function toggle() {
