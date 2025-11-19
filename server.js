@@ -7,13 +7,14 @@ const PORT = process.env.PORT || 8080;
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// ---------------------------
-// 1. 서버 설정 & 상태
-// ---------------------------
+// ===================
+// 설정 & 상태
+// ===================
 const config = {
   acOnTemp: 27,
   acOffTemp: 24,
-  absenceAlarmMinutes: 3
+  absenceAlarmMinutes: 3,
+  autoUnreserveMinutes: 5, // 5분 지나면 예약 자동 해제
 };
 
 const state = {
@@ -21,15 +22,14 @@ const state = {
   acOn: false,
   seatUsed: null,
   alarm: false,
-  seatReserved: false,  // ✅ 이 값만 아두이노로 전송
+  seatReserved: false,
   lastSeatChange: null,
-  seatTimeoutId: null
+  seatTimeoutId: null,
 };
 
-// ---------------------------
-// 2. 로직 함수
-// ---------------------------
-
+// ===================
+// 로직
+// ===================
 function updateACLogic(temp) {
   if (temp == null) return;
   if (!state.acOn && temp >= config.acOnTemp) state.acOn = true;
@@ -49,14 +49,15 @@ function handleSeatChange(seatUsed) {
   if (!seatUsed) {
     state.alarm = false;
     state.seatTimeoutId = setTimeout(() => {
+      // absenceAlarmMinutes 후 알람 켬
       if (state.seatUsed === false) {
         state.alarm = true;
 
-        // ✅ 5분 이상 비어 있으면 seatReserved 자동 해제
-        const absenceDuration = (Date.now() - state.lastSeatChange) / 60000; // 분 단위 계산
-        if (absenceDuration >= 5 && state.seatReserved === true) {
+        // 5분 이상 비어있으면 예약 자동 해제
+        const absenceMinutes = (Date.now() - state.lastSeatChange) / 60000;
+        if (absenceMinutes >= config.autoUnreserveMinutes && state.seatReserved === true) {
           state.seatReserved = false;
-          console.log("⏰ 5분 이상 비어 있음 → seatReserved 자동 해제됨");
+          console.log('⏰ 5분 이상 비어 있음 → seatReserved 자동 해제');
         }
       }
     }, config.absenceAlarmMinutes * 60 * 1000);
@@ -65,22 +66,20 @@ function handleSeatChange(seatUsed) {
   }
 }
 
+// ===================
+// 라우팅 (아두이노)
+// ===================
 
-// ---------------------------
-// 3. 라우팅
-// ---------------------------
-
-// ✅ (아두이노용) GET /api/data: seatReserved만 보내줌
+// 아두이노 GET: seatReserved만 응답
 app.get('/api/data', (req, res) => {
   res.json({ seatReserved: state.seatReserved });
 });
 
-// ✅ (아두이노용) POST /api/data: temperature, seatUsed 받기
+// 아두이노 POST: temperature, seatUsed만 수신
 app.post('/api/data', (req, res) => {
   const { temperature, seatUsed } = req.body;
   const updated = {};
 
-  // 온도 처리
   if (typeof temperature !== 'undefined') {
     if (typeof temperature !== 'number') {
       return res.status(400).json({ error: 'temperature는 숫자여야 합니다.' });
@@ -91,7 +90,6 @@ app.post('/api/data', (req, res) => {
     updated.acOn = state.acOn;
   }
 
-  // seatUsed 처리
   if (typeof seatUsed !== 'undefined') {
     if (typeof seatUsed !== 'boolean') {
       return res.status(400).json({ error: 'seatUsed는 true/false여야 합니다.' });
@@ -105,28 +103,41 @@ app.post('/api/data', (req, res) => {
   res.json({ ok: true, updated, state: safeState });
 });
 
-// (웹) 메인 페이지
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+// ===================
+// 라우팅 (웹)
+// ===================
+
+// 상태 조회(JSON) – 두 페이지 공통 사용
+app.get('/api/status', (req, res) => {
+  const { seatTimeoutId, ...safeState } = state;
+  res.json({ config, state: safeState });
 });
 
-// ✅ seatReserved 값을 토글하는 웹용 API
+// seatReserved 토글 – 예약 페이지에서 사용
 app.post('/api/toggleSeatReserved', (req, res) => {
   state.seatReserved = !state.seatReserved;
   console.log('seatReserved 상태 변경:', state.seatReserved);
   res.json({ seatReserved: state.seatReserved });
 });
 
-// (웹) 상태 조회
-app.get('/api/status', (req, res) => {
-  const { seatTimeoutId, ...safeState } = state;
-  res.json({ config, state: safeState });
+// 기본/메뉴 페이지
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// ---------------------------
-// 4. 서버 실행
-// ---------------------------
+// 온도 페이지
+app.get('/temperature', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'temperature.html'));
+});
+
+// 좌석 예약 페이지
+app.get('/reservation', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'reservation.html'));
+});
+
+// ===================
+// 실행
+// ===================
 app.listen(PORT, () => {
   console.log(`✅ testChair server is running on port ${PORT}`);
 });
-
