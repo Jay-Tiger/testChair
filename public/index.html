@@ -2,100 +2,18 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <title>testChair 서버</title>
+  <title>testChair 메뉴</title>
   <style>
-    body {
-      font-family: sans-serif;
-      text-align: center;
-      margin-top: 60px;
-      background-color: #f4f4f4;
-    }
-    h1 { color: #0077cc; }
-    .status {
-      display: inline-block;
-      padding: 16px 24px;
-      background: white;
-      border-radius: 10px;
-      box-shadow: 0 0 5px rgba(0,0,0,0.2);
-      margin-top: 20px;
-      text-align: left;
-    }
-    p { margin: 6px 0; font-size: 16px; }
-    .reserved-on { color: #d9534f; font-weight: bold; }
-    .reserved-off { color: #5cb85c; font-weight: bold; }
-    button {
-      margin-top: 16px;
-      padding: 8px 16px;
-      font-size: 14px;
-      border-radius: 6px;
-      border: none;
-      cursor: pointer;
-      background-color: #007bff;
-      color: white;
-    }
-    button:active { transform: scale(0.97); }
+    body { font-family: sans-serif; text-align: center; margin-top: 80px; }
+    a { display: inline-block; margin: 12px; padding: 12px 20px; border-radius: 8px; text-decoration: none; background:#007bff; color:#fff; }
   </style>
 </head>
 <body>
-  <h1>testChair 서버 상태</h1>
-
-  <div class="status">
-    <p id="temp">온도: - °C</p>
-    <p id="ac">에어컨: -</p>
-    <p id="seatUsed">착석: -</p>
-    <p id="alarm">알람: -</p>
-    <p id="reserved">예약 상태: -</p>
-    <button id="toggleReservedBtn">예약 ON/OFF</button>
-  </div>
-
-  <script>
-    async function fetchStatus() {
-      const res = await fetch('/api/status');
-      const data = await res.json();
-      const { state } = data;
-
-      // ✅ seatReserved가 false면 값 표시를 "-"로 변경
-      if (!state.seatReserved) {
-        document.getElementById('temp').textContent = "온도: - °C";
-        document.getElementById('ac').textContent = "에어컨: -";
-        document.getElementById('seatUsed').textContent = "착석: -";
-        document.getElementById('alarm').textContent = "알람: -";
-      } else {
-        // seatReserved가 true일 때는 정상 표시
-        document.getElementById('temp').textContent =
-          `온도: ${state.temperature ?? '-'} °C`;
-        document.getElementById('ac').textContent =
-          `에어컨: ${state.acOn ? 'ON' : 'OFF'}`;
-        document.getElementById('seatUsed').textContent =
-          `착석: ${state.seatUsed === null ? '-' : (state.seatUsed ? '착석 중' : '자리 비움')}`;
-        document.getElementById('alarm').textContent =
-          `알람: ${state.alarm ? '⚠️ 활성화' : '비활성'}`;
-      }
-
-      // 예약 상태는 항상 표시
-      document.getElementById('reserved').textContent =
-        `예약 상태: ${state.seatReserved ? '예약됨 ✅' : '미예약 ❌'}`;
-
-      const btn = document.getElementById('toggleReservedBtn');
-      btn.textContent = state.seatReserved ? '예약 해제하기' : '예약 걸기';
-    }
-
-    async function toggleReserved() {
-      const res = await fetch('/api/toggleSeatReserved', { method: 'POST' });
-      const data = await res.json();
-      console.log('seatReserved 변경됨:', data.seatReserved);
-      await fetchStatus(); // 새 상태 반영
-    }
-
-    document
-      .getElementById('toggleReservedBtn')
-      .addEventListener('click', toggleReserved);
-
-    // 초기 로드 및 주기적 갱신
-    window.addEventListener('load', () => {
-      fetchStatus();
-      setInterval(fetchStatus, 2000);
-    });
-  </script>
+  <h1>testChair 메뉴</h1>
+  <p>원하는 페이지를 선택하세요.</p>
+  <p>
+    <a href="/temperature">온도/착석 상태 페이지</a>
+    <a href="/reservation">좌석 예약 페이지</a>
+  </p>
 </body>
 </html>
