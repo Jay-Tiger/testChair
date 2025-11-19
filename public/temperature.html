@@ -4,10 +4,29 @@
   <meta charset="UTF-8" />
   <title>온도/착석 상태</title>
   <style>
-    body { font-family: sans-serif; text-align: center; margin-top: 60px; background:#f4f4f4; }
-    .card { display:inline-block; background:#fff; padding:18px 24px; border-radius:12px; box-shadow:0 2px 8px rgba(0,0,0,.1); text-align:left; }
+    body {
+      font-family: sans-serif;
+      text-align: center;
+      margin-top: 60px;
+      background:#f4f4f4;
+    }
+    .card {
+      display:inline-block;
+      background:#fff;
+      padding:18px 24px;
+      border-radius:12px;
+      box-shadow:0 2px 8px rgba(0,0,0,.1);
+      text-align:left;
+    }
     p { margin:8px 0; }
-    a { display:inline-block; margin-top:16px; text-decoration:none; color:#007bff; }
+    .alarm-on { color:#d9534f; font-weight:bold; }
+    .alarm-off { color:#555; }
+    a {
+      display:inline-block;
+      margin-top:16px;
+      text-decoration:none;
+      color:#007bff;
+    }
   </style>
 </head>
 <body>
@@ -17,33 +36,58 @@
     <p id="ac">에어컨: -</p>
     <p id="seatUsed">착석: -</p>
     <p id="alarm">알람: -</p>
+    <p id="alarmMessage"></p>
   </div>
-  <p><a href="/">← 메뉴로</a> | <a href="/reservation">좌석 예약 페이지로 →</a></p>
+  <p>
+    <a href="/">← 메뉴로</a> |
+    <a href="/reservation">좌석 예약 페이지로 →</a>
+  </p>
 
   <script>
     async function fetchStatus() {
-      const res = await fetch('/api/status');
-      const data = await res.json();
-      const { state } = data;
+      try {
+        const res = await fetch('/api/status');
+        const data = await res.json();
+        const { state } = data;
 
-      // 예약이 꺼져 있으면 모두 "-" 로
-      if (!state.seatReserved) {
-        document.getElementById('temp').textContent = "온도: - °C";
-        document.getElementById('ac').textContent = "에어컨: -";
-        document.getElementById('seatUsed').textContent = "착석: -";
-        document.getElementById('alarm').textContent = "알람: -";
-        return;
+        const tempEl = document.getElementById('temp');
+        const acEl = document.getElementById('ac');
+        const seatEl = document.getElementById('seatUsed');
+        const alarmEl = document.getElementById('alarm');
+        const alarmMsgEl = document.getElementById('alarmMessage');
+
+        // seatReserved가 꺼져 있으면 값 안 보여주기
+        if (!state.seatReserved) {
+          tempEl.textContent  = '온도: - °C';
+          acEl.textContent    = '에어컨: -';
+          seatEl.textContent  = '착석: -';
+          alarmEl.textContent = '알람: -';
+          alarmEl.className   = 'alarm-off';
+          alarmMsgEl.textContent = '';
+          return;
+        }
+
+        // 예약 켜져 있을 때만 실제 값 표시
+        tempEl.textContent =
+          `온도: ${state.temperature ?? '-'} °C`;
+        acEl.textContent =
+          `에어컨: ${state.acOn ? 'ON' : 'OFF'}`;
+        seatEl.textContent =
+          `착석: ${state.seatUsed === null ? '-' : (state.seatUsed ? '착석 중' : '자리 비움')}`;
+
+        // 🔥 알람 메시지
+        if (state.alarm) {
+          alarmEl.textContent = '알람: 활성화 ⚠️';
+          alarmEl.className   = 'alarm-on';
+          alarmMsgEl.textContent = '자리에 착석해주세요.';
+        } else {
+          alarmEl.textContent = '알람: 비활성';
+          alarmEl.className   = 'alarm-off';
+          alarmMsgEl.textContent = '';
+        }
+      } catch (e) {
+        console.error(e);
       }
-
-      // 예약이 켜져 있으면 정상 표시
-      document.getElementById('temp').textContent =
-        `온도: ${state.temperature ?? '-'} °C`;
-      document.getElementById('ac').textContent =
-        `에어컨: ${state.acOn ? 'ON' : 'OFF'}`;
-      document.getElementById('seatUsed').textContent =
-        `착석: ${state.seatUsed === null ? '-' : (state.seatUsed ? '착석 중' : '자리 비움')}`;
-      document.getElementById('alarm').textContent =
-        `알람: ${state.alarm ? '⚠️ 활성화' : '비활성'}`;
     }
 
     window.addEventListener('load', () => {
