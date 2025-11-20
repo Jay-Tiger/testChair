@@ -11,8 +11,8 @@ app.use(express.static(path.join(__dirname, 'public')));
 // 설정 & 상태
 // ===================
 const config = {
-  acOnTemp: 27,
-  acOffTemp: 24,
+  acOnTemp: 25,
+  acOffTemp: 23,
 
   autoUnreserveSeconds: 10,     // ✔ 예약 10초 후 자동 해제
   seatUsedTimeoutSeconds: 10    // ✔ seatUsed 10초 동안 업데이트 없으면 false 처리
