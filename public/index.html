@@ -26,6 +26,7 @@
       width: 100%;
       max-width: 480px;
       padding: 16px;
+      padding-top: 70px; /* 배너 공간 */
     }
     h1 {
       font-size: 1.6rem;
@@ -78,9 +79,32 @@
     }
     .alarm-on { color: var(--danger); font-weight: 600; }
     .alarm-off { color: var(--muted); }
+
+    /* 🔔 상단 배너 */
+    #banner {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      padding: 12px 16px;
+      background: rgba(0,0,0,0.85);
+      color: #fff;
+      font-size: 0.95rem;
+      text-align: center;
+      transform: translateY(-120%);
+      opacity: 0;
+      transition: transform 0.35s ease, opacity 0.35s ease;
+      z-index: 999;
+    }
+    #banner.show {
+      transform: translateY(0);
+      opacity: 1;
+    }
   </style>
 </head>
 <body>
+  <div id="banner"></div>
+
   <div class="wrap">
     <h1>testChair 메뉴</h1>
     <div class="subtitle">기능을 선택하세요.</div>
@@ -99,6 +123,20 @@
   </div>
 
   <script>
+    let prevAlarm = false;
+    let bannerTimer = null;
+
+    function showBanner(message) {
+      const banner = document.getElementById('banner');
+      banner.textContent = message;
+      banner.classList.add('show');
+
+      if (bannerTimer) clearTimeout(bannerTimer);
+      bannerTimer = setTimeout(() => {
+        banner.classList.remove('show');
+      }, 4000); // 4초 후 자동 사라짐
+    }
+
     async function fetchStatus() {
       try {
         const res = await fetch('/api/status');
@@ -116,11 +154,21 @@
           alarmEl.textContent = '알람: 활성화 ⚠️';
           alarmEl.className = 'alarm-on';
           alarmMsgEl.textContent = '자리에 착석해주세요.';
+
+          // 🔔 alarm이 꺼져있다가 새로 켜진 순간에만 배너 표시
+          if (!prevAlarm) {
+            showBanner('자리에 착석해주세요.');
+          }
         } else {
           alarmEl.textContent = '알람: 비활성';
           alarmEl.className = 'alarm-off';
           alarmMsgEl.textContent = '';
+
+          // 알람이 꺼지면 배너 즉시 숨기기
+          document.getElementById('banner').classList.remove('show');
         }
+
+        prevAlarm = state.alarm;
       } catch (e) {
         console.error(e);
       }
