@@ -25,6 +25,7 @@
       width: 100%;
       max-width: 480px;
       padding: 16px;
+      padding-top: 70px;
     }
     h1 {
       font-size: 1.6rem;
@@ -56,9 +57,32 @@
       text-decoration: none;
       margin: 0 6px;
     }
+
+    /* 🔔 상단 배너 */
+    #banner {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      padding: 12px 16px;
+      background: rgba(0,0,0,0.85);
+      color: #fff;
+      font-size: 0.95rem;
+      text-align: center;
+      transform: translateY(-120%);
+      opacity: 0;
+      transition: transform 0.35s ease, opacity 0.35s ease;
+      z-index: 999;
+    }
+    #banner.show {
+      transform: translateY(0);
+      opacity: 1;
+    }
   </style>
 </head>
 <body>
+  <div id="banner"></div>
+
   <div class="wrap">
     <h1>온도 · 착석 상태</h1>
 
@@ -77,6 +101,20 @@
   </div>
 
   <script>
+    let prevAlarm = false;
+    let bannerTimer = null;
+
+    function showBanner(message) {
+      const banner = document.getElementById('banner');
+      banner.textContent = message;
+      banner.classList.add('show');
+
+      if (bannerTimer) clearTimeout(bannerTimer);
+      bannerTimer = setTimeout(() => {
+        banner.classList.remove('show');
+      }, 4000);
+    }
+
     async function fetchStatus() {
       try {
         const res = await fetch('/api/status');
@@ -97,6 +135,8 @@
           alarmEl.innerHTML = '<span class="label">알람:</span> -';
           alarmEl.className = 'alarm-off';
           alarmMsgEl.textContent = '';
+          document.getElementById('banner').classList.remove('show');
+          prevAlarm = false;
           return;
         }
 
@@ -114,11 +154,18 @@
           alarmEl.innerHTML = '<span class="label">알람:</span> 활성화 ⚠️';
           alarmEl.className = 'alarm-on';
           alarmMsgEl.textContent = '자리에 착석해주세요.';
+
+          if (!prevAlarm) {
+            showBanner('자리에 착석해주세요.');
+          }
         } else {
           alarmEl.innerHTML = '<span class="label">알람:</span> 비활성';
           alarmEl.className = 'alarm-off';
           alarmMsgEl.textContent = '';
+          document.getElementById('banner').classList.remove('show');
         }
+
+        prevAlarm = state.alarm;
       } catch (e) {
         console.error(e);
       }
