@@ -9,8 +9,6 @@
       --primary:#007bff;
       --bg:#f4f4f4;
       --card-bg:#ffffff;
-      --danger:#d9534f;
-      --muted:#555555;
     }
     * { box-sizing: border-box; }
     body {
@@ -45,8 +43,6 @@
     .label {
       font-weight: 500;
     }
-    .alarm-on { color: var(--danger); font-weight: 600; }
-    .alarm-off { color: var(--muted); }
     .links {
       margin-top: 16px;
       text-align: center;
@@ -90,8 +86,6 @@
       <p id="temp"><span class="label">온도:</span> - °C</p>
       <p id="ac"><span class="label">에어컨:</span> -</p>
       <p id="seatUsed"><span class="label">착석:</span> -</p>
-      <p id="alarm"><span class="label">알람:</span> -</p>
-      <p id="alarmMessage"></p>
     </div>
 
     <div class="links">
@@ -101,7 +95,7 @@
   </div>
 
   <script>
-    let prevAlarm = false;
+    let prevEvent = null;
     let bannerTimer = null;
 
     function showBanner(message) {
@@ -124,48 +118,32 @@
         const tempEl = document.getElementById('temp');
         const acEl = document.getElementById('ac');
         const seatEl = document.getElementById('seatUsed');
-        const alarmEl = document.getElementById('alarm');
-        const alarmMsgEl = document.getElementById('alarmMessage');
 
         // seatReserved가 꺼져 있으면 값 안 보여주기
         if (!state.seatReserved) {
           tempEl.innerHTML  = '<span class="label">온도:</span> - °C';
           acEl.innerHTML    = '<span class="label">에어컨:</span> -';
           seatEl.innerHTML  = '<span class="label">착석:</span> -';
-          alarmEl.innerHTML = '<span class="label">알람:</span> -';
-          alarmEl.className = 'alarm-off';
-          alarmMsgEl.textContent = '';
-          document.getElementById('banner').classList.remove('show');
-          prevAlarm = false;
-          return;
-        }
-
-        // 예약 켜져 있을 때만 실제 값 표시
-        tempEl.innerHTML =
-          `<span class="label">온도:</span> ${state.temperature ?? '-'} °C`;
-        acEl.innerHTML =
-          `<span class="label">에어컨:</span> ${state.acOn ? 'ON' : 'OFF'}`;
-        seatEl.innerHTML =
-          `<span class="label">착석:</span> ${
-            state.seatUsed === null ? '-' : (state.seatUsed ? '착석 중' : '자리 비움')
-          }`;
-
-        if (state.alarm) {
-          alarmEl.innerHTML = '<span class="label">알람:</span> 활성화 ⚠️';
-          alarmEl.className = 'alarm-on';
-          alarmMsgEl.textContent = '자리에 착석해주세요.';
-
-          if (!prevAlarm) {
-            showBanner('자리에 착석해주세요.');
-          }
         } else {
-          alarmEl.innerHTML = '<span class="label">알람:</span> 비활성';
-          alarmEl.className = 'alarm-off';
-          alarmMsgEl.textContent = '';
-          document.getElementById('banner').classList.remove('show');
+          tempEl.innerHTML =
+            `<span class="label">온도:</span> ${state.temperature ?? '-'} °C`;
+          acEl.innerHTML =
+            `<span class="label">에어컨:</span> ${state.acOn ? 'ON' : 'OFF'}`;
+          seatEl.innerHTML =
+            `<span class="label">착석:</span> ${
+              state.seatUsed === null ? '-' : (state.seatUsed ? '착석 중' : '자리 비움')
+            }`;
         }
 
-        prevAlarm = state.alarm;
+        // lastEvent에 따라 배너 표시
+        if (state.lastEvent && state.lastEvent !== prevEvent) {
+          if (state.lastEvent === 'ALARM_ON') {
+            showBanner('자리에 착석해주세요.');
+          } else if (state.lastEvent === 'AUTO_UNRESERVE') {
+            showBanner('좌석 예약이 취소되었습니다.');
+          }
+        }
+        prevEvent = state.lastEvent;
       } catch (e) {
         console.error(e);
       }
