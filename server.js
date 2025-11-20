@@ -11,8 +11,8 @@ app.use(express.static(path.join(__dirname, 'public')));
 // 설정 & 상태
 // ===================
 const config = {
-  acOnTemp: 27,
-  acOffTemp: 24,
+  acOnTemp: 25,
+  acOffTemp: 22,
   autoUnreserveSeconds: 10   // ✔ 예약 ON + 자리비움 10초 유지 → 자동 해제
 };
 
@@ -39,6 +39,14 @@ const state = {
 function updateACLogic(temp) {
   if (temp == null) return;
 
+  // 🔴 미예약이면 무조건 에어컨/팬 OFF
+  if (!state.seatReserved) {
+    state.acOn = false;
+    state.fanOn = false;
+    return;
+  }
+
+  // ✅ 예약된 상태에서만 온도 기준으로 제어
   if (!state.acOn && temp >= config.acOnTemp) {
     state.acOn = true;
     state.fanOn = true;
@@ -62,7 +70,9 @@ function scheduleAutoUnreserve() {
       // 10초 뒤에도 여전히 조건이 유지되면 예약 해제
       if (state.seatReserved === true && state.seatUsed !== true) {
         state.seatReserved = false;
-        console.log('⏰ 10초 동안 착석 없음 → 좌석 예약 자동 취소');
+        state.acOn = false;   // 🔴 예약 자동 취소 시 에어컨/팬 OFF
+        state.fanOn = false;
+        console.log('⏰ 10초 동안 착석 없음 → 좌석 예약 자동 취소 (에어컨 OFF)');
       }
     }, config.autoUnreserveSeconds * 1000);
   }
@@ -118,7 +128,7 @@ app.post('/api/data', (req, res) => {
 
   const { unreserveTimeoutId, ...safeState } = state;
   res.json({ ok: true, updated, state: safeState });
-});
+}
 
 // ===================
 // 웹 API
@@ -134,6 +144,12 @@ app.get('/api/status', (req, res) => {
 app.post('/api/toggleSeatReserved', (req, res) => {
   state.seatReserved = !state.seatReserved;
   console.log('예약 상태 변경:', state.seatReserved);
+
+  // 🔴 예약을 끈 순간 에어컨/팬 OFF
+  if (!state.seatReserved) {
+    state.acOn = false;
+    state.fanOn = false;
+  }
 
   // 예약 상태가 바뀌었으니 자동 취소 타이머 다시 검사
   scheduleAutoUnreserve();
