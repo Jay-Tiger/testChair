@@ -118,6 +118,7 @@
         const acEl = document.getElementById('ac');
         const seatEl = document.getElementById('seatUsed');
 
+        // 예약이 꺼져 있으면 값 감추기
         if (!state.seatReserved) {
           tempEl.innerHTML  = '<span class="label">온도:</span> - °C';
           acEl.innerHTML    = '<span class="label">에어컨:</span> -';
@@ -133,7 +134,7 @@
             }`;
         }
 
-        // 🔔 예약 true → false 변할 때마다 배너
+        // 예약 true → false 변할 때마다 배너
         if (prevSeatReserved === true && state.seatReserved === false) {
           showBanner('좌석 예약이 취소되었습니다.');
         }
