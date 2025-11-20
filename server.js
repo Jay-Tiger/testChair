@@ -11,11 +11,9 @@ app.use(express.static(path.join(__dirname, 'public')));
 // 설정 & 상태
 // ===================
 const config = {
-  acOnTemp: 25,
-  acOffTemp: 23,
-
-  autoUnreserveSeconds: 10,     // ✔ 예약 10초 후 자동 해제
-  seatUsedTimeoutSeconds: 10    // ✔ seatUsed 10초 동안 업데이트 없으면 false 처리
+  acOnTemp: 27,
+  acOffTemp: 24,
+  autoUnreserveSeconds: 10   // ✔ 예약 ON + 자리비움 10초 유지 → 자동 해제
 };
 
 const state = {
@@ -23,21 +21,21 @@ const state = {
   acOn: false,
   fanOn: false,
 
-  seatUsed: null,               // true: 사용중 / false 또는 null: 비어있음
-  lastSeatUsedUpdate: null,     // seatUsed가 마지막으로 업데이트된 시간
+  // 착석 상태: true = 앉아있음, false/null = 비어있음으로 취급
+  seatUsed: null,
 
+  // 예약 상태
   seatReserved: false,
-  lastSeatChange: null,
 
-  unreserveTimeoutId: null,
-  lastEvent: null               // 'AUTO_UNRESERVE'
+  lastSeatChange: null,
+  unreserveTimeoutId: null
 };
 
 // ===================
 // 공통 로직
 // ===================
 
-// 온도 → AC / Fan 제어 로직
+// 온도 → 에어컨 / 팬 상태 결정
 function updateACLogic(temp) {
   if (temp == null) return;
 
@@ -52,37 +50,31 @@ function updateACLogic(temp) {
 
 // 예약 자동 해제 타이머 설정
 function scheduleAutoUnreserve() {
+  // 기존 타이머가 있으면 제거
   if (state.unreserveTimeoutId) {
     clearTimeout(state.unreserveTimeoutId);
     state.unreserveTimeoutId = null;
   }
 
-  // 예약 ON + 좌석 사용중이 아님 (seatUsed != true)
+  // 조건: 예약 ON 이고, 자리가 비어 있다고 판단될 때(seatUsed !== true)
   if (state.seatReserved === true && state.seatUsed !== true) {
     state.unreserveTimeoutId = setTimeout(() => {
+      // 10초 뒤에도 여전히 조건이 유지되면 예약 해제
       if (state.seatReserved === true && state.seatUsed !== true) {
         state.seatReserved = false;
-        state.lastEvent = 'AUTO_UNRESERVE';
         console.log('⏰ 10초 동안 착석 없음 → 좌석 예약 자동 취소');
-
-        // 🔥 이벤트를 0.5초만 유지하고 null로 초기화
-        setTimeout(() => {
-          if (state.lastEvent === 'AUTO_UNRESERVE') {
-            state.lastEvent = null;
-          }
-        }, 500);  // ← 0.5초(500ms)
       }
     }, config.autoUnreserveSeconds * 1000);
   }
 }
 
-// seatUsed 업데이트 시 호출
+// seatUsed 변경 처리
 function handleSeatChange(seatUsed) {
   const now = Date.now();
   state.seatUsed = seatUsed;
-  state.lastSeatUsedUpdate = now;
   state.lastSeatChange = now;
 
+  // 자리 상태 바뀔 때마다 자동 취소 타이머 재설정
   scheduleAutoUnreserve();
 }
 
@@ -103,19 +95,25 @@ app.post('/api/data', (req, res) => {
   const { temperature, seatUsed } = req.body;
   const updated = {};
 
+  // 온도 처리
   if (typeof temperature !== 'undefined') {
     if (typeof temperature !== 'number') {
       return res.status(400).json({ error: 'temperature는 숫자여야 합니다.' });
     }
     state.temperature = temperature;
     updateACLogic(temperature);
+    updated.temperature = state.temperature;
+    updated.acOn = state.acOn;
+    updated.fanOn = state.fanOn;
   }
 
+  // 착석 상태 처리
   if (typeof seatUsed !== 'undefined') {
     if (typeof seatUsed !== 'boolean') {
       return res.status(400).json({ error: 'seatUsed는 true/false여야 합니다.' });
     }
     handleSeatChange(seatUsed);
+    updated.seatUsed = state.seatUsed;
   }
 
   const { unreserveTimeoutId, ...safeState } = state;
@@ -126,40 +124,22 @@ app.post('/api/data', (req, res) => {
 // 웹 API
 // ===================
 
+// 상태 조회(JSON) – 세 페이지에서 공통 사용
 app.get('/api/status', (req, res) => {
   const { unreserveTimeoutId, ...safeState } = state;
   res.json({ config, state: safeState });
 });
 
+// 예약 ON/OFF 버튼 – 예약 페이지에서 사용
 app.post('/api/toggleSeatReserved', (req, res) => {
   state.seatReserved = !state.seatReserved;
   console.log('예약 상태 변경:', state.seatReserved);
 
+  // 예약 상태가 바뀌었으니 자동 취소 타이머 다시 검사
   scheduleAutoUnreserve();
+
   res.json({ seatReserved: state.seatReserved });
 });
-
-// ============================
-// seatUsed 자동 timeout 검사
-// ============================
-
-setInterval(() => {
-  const now = Date.now();
-
-  if (state.lastSeatUsedUpdate === null) return;
-
-  const diff = (now - state.lastSeatUsedUpdate) / 1000;
-
-  // 10초 넘게 업데이트 없으면 seatUsed → false 자동화
-  if (diff >= config.seatUsedTimeoutSeconds) {
-    if (state.seatUsed !== false) {
-      console.log('⚠️ 10초 동안 seatUsed 데이터 없음 → 자동으로 seatUsed = false 처리');
-      state.seatUsed = false;
-
-      scheduleAutoUnreserve();
-    }
-  }
-}, 1000);
 
 // ============================
 // 페이지 라우팅
