@@ -20,12 +20,12 @@ const state = {
   temperature: null,
   acOn: false,
   fanOn: false,
-  seatUsed: null,       // true: 앉아있음, false: 비어있음, null: 아직 모름
+  seatUsed: null,       // true: 앉아있음, false 또는 null: 비어있다고 간주
   alarm: false,         // 지금은 안 쓰지만 필드만 유지
   seatReserved: false,
   lastSeatChange: null,
   unreserveTimeoutId: null,
-  lastEvent: null       // 'AUTO_UNRESERVE' | null (지금은 이거만 사용)
+  lastEvent: null       // 'AUTO_UNRESERVE' | null
 };
 
 // ===================
@@ -53,14 +53,16 @@ function scheduleAutoUnreserve() {
     state.unreserveTimeoutId = null;
   }
 
-  // 조건: "좌석은 비어 있고(seatUsed === false) + 예약은 걸려 있는 상태(seatReserved === true)"일 때만 타이머 설정
-  if (state.seatReserved === true && state.seatUsed === false) {
+  // ✅ 조건:
+  //  seatReserved === true 이고,
+  //  seatUsed !== true (즉 false거나 null이면 "비어있다"로 취급)
+  if (state.seatReserved === true && state.seatUsed !== true) {
     state.unreserveTimeoutId = setTimeout(() => {
-      // 30초가 지난 시점에도 여전히 비어 있고 예약 상태면 취소
-      if (state.seatReserved === true && state.seatUsed === false) {
+      // 30초 뒤에도 여전히 "예약 O + 자리 사용 X"이면 취소
+      if (state.seatReserved === true && state.seatUsed !== true) {
         state.seatReserved = false;
         state.lastEvent = 'AUTO_UNRESERVE';
-        console.log('⏰ 30초 자리 비움 → 좌석 예약 자동 취소 (AUTO_UNRESERVE)');
+        console.log('⏰ 30초 동안 착석 없음 → 좌석 예약 자동 취소 (AUTO_UNRESERVE)');
       }
     }, config.autoUnreserveSeconds * 1000);
   }
@@ -134,7 +136,7 @@ app.post('/api/toggleSeatReserved', (req, res) => {
   state.seatReserved = !state.seatReserved;
   console.log('seatReserved 상태 변경:', state.seatReserved);
 
-  // 토글 후에도 자동취소 조건을 다시 검사해서 타이머 재설정
+  // 토글 후에도 자동취소 조건 다시 검사해서 타이머 재설정
   scheduleAutoUnreserve();
 
   res.json({ seatReserved: state.seatReserved });
