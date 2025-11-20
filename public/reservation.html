@@ -42,8 +42,6 @@
     p { margin: 6px 0; font-size: 0.95rem; }
     .on { color: var(--danger); font-weight: 600; }
     .off { color: var(--success); font-weight: 600; }
-    .alarm-on { color: var(--danger); font-weight: 600; }
-    .alarm-off { color: var(--muted); }
     button {
       margin-top: 14px;
       width: 100%;
@@ -102,9 +100,6 @@
     <div class="card">
       <p id="reserved">예약 상태: -</p>
       <button id="toggleBtn">예약 ON/OFF</button>
-      <hr />
-      <p id="alarm">알람: -</p>
-      <p id="alarmMessage"></p>
     </div>
 
     <div class="links">
@@ -114,7 +109,7 @@
   </div>
 
   <script>
-    let prevAlarm = false;
+    let prevEvent = null;
     let bannerTimer = null;
 
     function showBanner(message) {
@@ -135,8 +130,6 @@
         const { state } = data;
 
         const reservedEl = document.getElementById('reserved');
-        const alarmEl = document.getElementById('alarm');
-        const alarmMsgEl = document.getElementById('alarmMessage');
         const btn = document.getElementById('toggleBtn');
 
         reservedEl.textContent =
@@ -145,22 +138,15 @@
 
         btn.textContent = state.seatReserved ? '예약 해제하기' : '예약 걸기';
 
-        if (state.seatReserved && state.alarm) {
-          alarmEl.textContent = '알람: 활성화 ⚠️';
-          alarmEl.className   = 'alarm-on';
-          alarmMsgEl.textContent = '자리에 착석해주세요.';
-
-          if (!prevAlarm) {
+        // lastEvent에 따라 배너 표시
+        if (state.lastEvent && state.lastEvent !== prevEvent) {
+          if (state.lastEvent === 'ALARM_ON') {
             showBanner('자리에 착석해주세요.');
+          } else if (state.lastEvent === 'AUTO_UNRESERVE') {
+            showBanner('좌석 예약이 취소되었습니다.');
           }
-        } else {
-          alarmEl.textContent = '알람: 비활성';
-          alarmEl.className   = 'alarm-off';
-          alarmMsgEl.textContent = '';
-          document.getElementById('banner').classList.remove('show');
         }
-
-        prevAlarm = state.alarm;
+        prevEvent = state.lastEvent;
       } catch (e) {
         console.error(e);
       }
