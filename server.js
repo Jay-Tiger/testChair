@@ -26,7 +26,8 @@ const state = {
   seatReserved: false,
   lastSeatChange: null,
   alarmTimeoutId: null,
-  unreserveTimeoutId: null
+  unreserveTimeoutId: null,
+  lastEvent: null          // 'ALARM_ON' | 'AUTO_UNRESERVE' | null
 };
 
 // ===================
@@ -73,7 +74,8 @@ function handleSeatChange(seatUsed) {
     state.alarmTimeoutId = setTimeout(() => {
       if (state.seatUsed === false) {
         state.alarm = true;
-        console.log('⚠️ 3분 이상 자리 비움 → alarm = true');
+        state.lastEvent = 'ALARM_ON';
+        console.log('⚠️ 3분 이상 자리 비움 → alarm = true, lastEvent = ALARM_ON');
       }
     }, config.absenceAlarmMinutes * 60 * 1000);
 
@@ -81,7 +83,8 @@ function handleSeatChange(seatUsed) {
     state.unreserveTimeoutId = setTimeout(() => {
       if (state.seatUsed === false && state.seatReserved === true) {
         state.seatReserved = false;
-        console.log('⏰ 5분 이상 자리 비움 → seatReserved 자동 해제');
+        state.lastEvent = 'AUTO_UNRESERVE';
+        console.log('⏰ 5분 이상 자리 비움 → seatReserved 자동 해제, lastEvent = AUTO_UNRESERVE');
       }
     }, config.autoUnreserveMinutes * 60 * 1000);
 
@@ -148,6 +151,7 @@ app.get('/api/status', (req, res) => {
 app.post('/api/toggleSeatReserved', (req, res) => {
   state.seatReserved = !state.seatReserved;
   console.log('seatReserved 상태 변경:', state.seatReserved);
+  // 토글 자체는 이벤트로 치지 않음 (원하면 lastEvent 설정 가능)
   res.json({ seatReserved: state.seatReserved });
 });
 
