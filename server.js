@@ -60,11 +60,17 @@ function scheduleAutoUnreserve() {
   // 예약 ON + 좌석 사용중이 아님 (seatUsed != true)
   if (state.seatReserved === true && state.seatUsed !== true) {
     state.unreserveTimeoutId = setTimeout(() => {
-      // 10초 뒤에도 같은 조건이면 예약 해제
       if (state.seatReserved === true && state.seatUsed !== true) {
         state.seatReserved = false;
         state.lastEvent = 'AUTO_UNRESERVE';
         console.log('⏰ 10초 동안 착석 없음 → 좌석 예약 자동 취소');
+
+        // 🔥 이벤트를 0.5초만 유지하고 null로 초기화
+        setTimeout(() => {
+          if (state.lastEvent === 'AUTO_UNRESERVE') {
+            state.lastEvent = null;
+          }
+        }, 500);  // ← 0.5초(500ms)
       }
     }, config.autoUnreserveSeconds * 1000);
   }
