@@ -77,8 +77,6 @@
       margin: 4px 0;
       font-size: 0.95rem;
     }
-    .alarm-on { color: var(--danger); font-weight: 600; }
-    .alarm-off { color: var(--muted); }
 
     /* 🔔 상단 배너 */
     #banner {
@@ -117,13 +115,11 @@
     <div class="card">
       <p class="card-title">현재 상태</p>
       <p id="reserved">예약 상태: -</p>
-      <p id="alarm">알람: -</p>
-      <p id="alarmMessage"></p>
     </div>
   </div>
 
   <script>
-    let prevAlarm = false;
+    let prevEvent = null;
     let bannerTimer = null;
 
     function showBanner(message) {
@@ -134,7 +130,7 @@
       if (bannerTimer) clearTimeout(bannerTimer);
       bannerTimer = setTimeout(() => {
         banner.classList.remove('show');
-      }, 4000); // 4초 후 자동 사라짐
+      }, 4000);
     }
 
     async function fetchStatus() {
@@ -144,31 +140,18 @@
         const { state } = data;
 
         const reservedEl = document.getElementById('reserved');
-        const alarmEl = document.getElementById('alarm');
-        const alarmMsgEl = document.getElementById('alarmMessage');
-
         reservedEl.textContent =
           `예약 상태: ${state.seatReserved ? '예약됨 ✅' : '미예약 ❌'}`;
 
-        if (state.alarm && state.seatReserved) {
-          alarmEl.textContent = '알람: 활성화 ⚠️';
-          alarmEl.className = 'alarm-on';
-          alarmMsgEl.textContent = '자리에 착석해주세요.';
-
-          // 🔔 alarm이 꺼져있다가 새로 켜진 순간에만 배너 표시
-          if (!prevAlarm) {
+        // lastEvent에 따라 배너 표시
+        if (state.lastEvent && state.lastEvent !== prevEvent) {
+          if (state.lastEvent === 'ALARM_ON') {
             showBanner('자리에 착석해주세요.');
+          } else if (state.lastEvent === 'AUTO_UNRESERVE') {
+            showBanner('좌석 예약이 취소되었습니다.');
           }
-        } else {
-          alarmEl.textContent = '알람: 비활성';
-          alarmEl.className = 'alarm-off';
-          alarmMsgEl.textContent = '';
-
-          // 알람이 꺼지면 배너 즉시 숨기기
-          document.getElementById('banner').classList.remove('show');
         }
-
-        prevAlarm = state.alarm;
+        prevEvent = state.lastEvent;
       } catch (e) {
         console.error(e);
       }
