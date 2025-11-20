@@ -11,8 +11,8 @@ app.use(express.static(path.join(__dirname, 'public')));
 // 설정 & 상태
 // ===================
 const config = {
-  acOnTemp: 27,
-  acOffTemp: 24,
+  acOnTemp: 25,
+  acOffTemp: 22,
   autoUnreserveSeconds: 10   // ✔ 예약 ON + 자리비움 10초 유지 → 자동 해제
 };
 
