@@ -13,25 +13,31 @@ app.use(express.static(path.join(__dirname, 'public')));
 const config = {
   acOnTemp: 27,
   acOffTemp: 24,
-  autoUnreserveSeconds: 9   // 10초 후 자동 해제
+
+  autoUnreserveSeconds: 10,     // ✔ 예약 10초 후 자동 해제
+  seatUsedTimeoutSeconds: 10    // ✔ seatUsed 10초 동안 업데이트 없으면 false 처리
 };
 
 const state = {
   temperature: null,
   acOn: false,
   fanOn: false,
-  seatUsed: null,            // true면 착석, false/null이면 비어있음
+
+  seatUsed: null,               // true: 사용중 / false 또는 null: 비어있음
+  lastSeatUsedUpdate: null,     // seatUsed가 마지막으로 업데이트된 시간
+
   seatReserved: false,
   lastSeatChange: null,
+
   unreserveTimeoutId: null,
-  lastEvent: null            // 'AUTO_UNRESERVE'
+  lastEvent: null               // 'AUTO_UNRESERVE'
 };
 
 // ===================
-// 공통 로직 함수
+// 공통 로직
 // ===================
 
-// 온도에 따른 냉방/팬 로직
+// 온도 → AC / Fan 제어 로직
 function updateACLogic(temp) {
   if (temp == null) return;
 
@@ -44,51 +50,33 @@ function updateACLogic(temp) {
   }
 }
 
-// 🔁 예약 자동 해제 타이머 설정/재설정
+// 예약 자동 해제 타이머 설정
 function scheduleAutoUnreserve() {
-  // 기존 타이머 제거
   if (state.unreserveTimeoutId) {
     clearTimeout(state.unreserveTimeoutId);
     state.unreserveTimeoutId = null;
   }
 
-  // 예약이 켜져 있지 않은 경우 → 타이머 필요 없음
-  if (!state.seatReserved) return;
-
-  // ❗ seatUsed가 true면 착석 중 → 절대 자동취소 안 함
-  if (state.seatUsed === true) {
-    console.log("✔ 착석 상태이므로 자동취소 타이머를 실행하지 않습니다.");
-    return;
+  // 예약 ON + 좌석 사용중이 아님 (seatUsed != true)
+  if (state.seatReserved === true && state.seatUsed !== true) {
+    state.unreserveTimeoutId = setTimeout(() => {
+      // 10초 뒤에도 같은 조건이면 예약 해제
+      if (state.seatReserved === true && state.seatUsed !== true) {
+        state.seatReserved = false;
+        state.lastEvent = 'AUTO_UNRESERVE';
+        console.log('⏰ 10초 동안 착석 없음 → 좌석 예약 자동 취소');
+      }
+    }, config.autoUnreserveSeconds * 1000);
   }
-
-  // seatUsed가 false/null이고 예약이 true → 10초 후 자동취소 타이머 설정
-  state.unreserveTimeoutId = setTimeout(() => {
-    if (state.seatReserved === true && state.seatUsed !== true) {
-      state.seatReserved = false;
-      state.lastEvent = 'AUTO_UNRESERVE';
-      console.log('⏰ 10초 지나도 착석 없음 → 좌석 예약 자동 취소');
-    }
-  }, config.autoUnreserveSeconds * 1000);
-
-  console.log("⏳ 자동취소 타이머 시작 (10초)");
 }
 
-// 좌석 사용 여부 변경 처리
+// seatUsed 업데이트 시 호출
 function handleSeatChange(seatUsed) {
+  const now = Date.now();
   state.seatUsed = seatUsed;
-  state.lastSeatChange = Date.now();
+  state.lastSeatUsedUpdate = now;
+  state.lastSeatChange = now;
 
-  if (seatUsed === true) {
-    // 착석하면 자동 취소 타이머 즉시 제거
-    if (state.unreserveTimeoutId) {
-      clearTimeout(state.unreserveTimeoutId);
-      state.unreserveTimeoutId = null;
-    }
-    console.log("👤 착석 감지 → 예약 자동취소 비활성화");
-    return;
-  }
-
-  // seatUsed = false이면 자동취소 가능 상태 → 다시 타이머 설정
   scheduleAutoUnreserve();
 }
 
@@ -96,7 +84,7 @@ function handleSeatChange(seatUsed) {
 // 아두이노 API
 // ===================
 
-// 아두이노 GET
+// 아두이노 GET : seatReserved, fanOn 전달
 app.get('/api/data', (req, res) => {
   res.json({
     seatReserved: state.seatReserved,
@@ -104,45 +92,72 @@ app.get('/api/data', (req, res) => {
   });
 });
 
-// 아두이노 POST
+// 아두이노 POST : temperature, seatUsed 수신
 app.post('/api/data', (req, res) => {
   const { temperature, seatUsed } = req.body;
+  const updated = {};
 
   if (typeof temperature !== 'undefined') {
-    if (typeof temperature !== 'number')
+    if (typeof temperature !== 'number') {
       return res.status(400).json({ error: 'temperature는 숫자여야 합니다.' });
+    }
     state.temperature = temperature;
     updateACLogic(temperature);
   }
 
   if (typeof seatUsed !== 'undefined') {
-    if (typeof seatUsed !== 'boolean')
+    if (typeof seatUsed !== 'boolean') {
       return res.status(400).json({ error: 'seatUsed는 true/false여야 합니다.' });
+    }
     handleSeatChange(seatUsed);
   }
 
-  res.json({ ok: true, state });
+  const { unreserveTimeoutId, ...safeState } = state;
+  res.json({ ok: true, updated, state: safeState });
 });
 
 // ===================
-// 웹페이지 API
+// 웹 API
 // ===================
 
 app.get('/api/status', (req, res) => {
-  res.json({ config, state });
+  const { unreserveTimeoutId, ...safeState } = state;
+  res.json({ config, state: safeState });
 });
 
-// seatReserved 토글 버튼 (예약 페이지)
 app.post('/api/toggleSeatReserved', (req, res) => {
   state.seatReserved = !state.seatReserved;
-  console.log("seatReserved 변경:", state.seatReserved);
+  console.log('예약 상태 변경:', state.seatReserved);
+
   scheduleAutoUnreserve();
   res.json({ seatReserved: state.seatReserved });
 });
 
-// ===================
+// ============================
+// seatUsed 자동 timeout 검사
+// ============================
+
+setInterval(() => {
+  const now = Date.now();
+
+  if (state.lastSeatUsedUpdate === null) return;
+
+  const diff = (now - state.lastSeatUsedUpdate) / 1000;
+
+  // 10초 넘게 업데이트 없으면 seatUsed → false 자동화
+  if (diff >= config.seatUsedTimeoutSeconds) {
+    if (state.seatUsed !== false) {
+      console.log('⚠️ 10초 동안 seatUsed 데이터 없음 → 자동으로 seatUsed = false 처리');
+      state.seatUsed = false;
+
+      scheduleAutoUnreserve();
+    }
+  }
+}, 1000);
+
+// ============================
 // 페이지 라우팅
-// ===================
+// ============================
 
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
@@ -156,9 +171,10 @@ app.get('/reservation', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'reservation.html'));
 });
 
-// ===================
+// ============================
 // 서버 실행
-// ===================
+// ============================
+
 app.listen(PORT, () => {
   console.log(`🚀 testChair server running on port ${PORT}`);
 });
