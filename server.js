@@ -13,7 +13,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 const config = {
   acOnTemp: 27,
   acOffTemp: 24,
-  autoUnreserveSeconds: 10   // 10초 후 자동 해제
+  autoUnreserveSeconds: 9   // 10초 후 자동 해제
 };
 
 const state = {
