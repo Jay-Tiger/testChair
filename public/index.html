@@ -9,9 +9,6 @@
       --primary:#007bff;
       --bg:#f4f4f4;
       --card-bg:#ffffff;
-      --danger:#d9534f;
-      --muted:#555555;
-      --success:#5cb85c;
     }
     * { box-sizing: border-box; }
     body {
@@ -91,7 +88,7 @@
       text-align: center;
       transform: translateY(-120%);
       opacity: 0;
-      transition: transform 0.35s ease, opacity 0.35s ease;
+      transition: transform 0.3s ease, opacity 0.3s ease;
       z-index: 999;
     }
     #banner.show {
@@ -119,7 +116,7 @@
   </div>
 
   <script>
-    let prevEvent = null;
+    let prevSeatReserved = null;
     let bannerTimer = null;
 
     function showBanner(message) {
@@ -130,7 +127,7 @@
       if (bannerTimer) clearTimeout(bannerTimer);
       bannerTimer = setTimeout(() => {
         banner.classList.remove('show');
-      }, 4000);
+      }, 3000); // 3초 후 사라짐
     }
 
     async function fetchStatus() {
@@ -143,15 +140,12 @@
         reservedEl.textContent =
           `예약 상태: ${state.seatReserved ? '예약됨 ✅' : '미예약 ❌'}`;
 
-        // lastEvent에 따라 배너 표시
-        if (state.lastEvent && state.lastEvent !== prevEvent) {
-          if (state.lastEvent === 'ALARM_ON') {
-            showBanner('자리에 착석해주세요.');
-          } else if (state.lastEvent === 'AUTO_UNRESERVE') {
-            showBanner('좌석 예약이 취소되었습니다.');
-          }
+        // 🔔 이전에 예약이 켜져 있었는데 지금 꺼졌으면 → 배너
+        if (prevSeatReserved === true && state.seatReserved === false) {
+          showBanner('좌석 예약이 취소되었습니다.');
         }
-        prevEvent = state.lastEvent;
+
+        prevSeatReserved = state.seatReserved;
       } catch (e) {
         console.error(e);
       }
