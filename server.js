@@ -13,7 +13,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 const config = {
   acOnTemp: 27,
   acOffTemp: 24,
-  autoUnreserveSeconds: 30 // ✔ 30초 후 자동 예약 취소
+  autoUnreserveSeconds: 10 // ✔ 30초 후 자동 예약 취소
 };
 
 const state = {
