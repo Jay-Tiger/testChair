@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <title>온도 · 착석 상태</title>
+  <title>좌석 예약</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <style>
     :root {
@@ -11,6 +11,7 @@
       --card-bg:#ffffff;
       --danger:#d9534f;
       --muted:#555555;
+      --success:#5cb85c;
     }
     * { box-sizing: border-box; }
     body {
@@ -25,6 +26,7 @@
       width: 100%;
       max-width: 480px;
       padding: 16px;
+      padding-top: 70px;
     }
     h1 {
       font-size: 1.6rem;
@@ -37,15 +39,27 @@
       padding: 16px 18px;
       box-shadow: 0 2px 8px rgba(0,0,0,.08);
     }
-    p {
-      margin: 6px 0;
-      font-size: 0.95rem;
-    }
-    .label {
-      font-weight: 500;
-    }
+    p { margin: 6px 0; font-size: 0.95rem; }
+    .on { color: var(--danger); font-weight: 600; }
+    .off { color: var(--success); font-weight: 600; }
     .alarm-on { color: var(--danger); font-weight: 600; }
     .alarm-off { color: var(--muted); }
+    button {
+      margin-top: 14px;
+      width: 100%;
+      padding: 14px 16px;
+      border: 0;
+      border-radius: 10px;
+      background: var(--primary);
+      color: #fff;
+      font-size: 1rem;
+      font-weight: 500;
+      cursor: pointer;
+    }
+    button:active {
+      opacity: 0.85;
+      transform: scale(0.98);
+    }
     .links {
       margin-top: 16px;
       text-align: center;
@@ -56,77 +70,112 @@
       text-decoration: none;
       margin: 0 6px;
     }
+
+    /* 🔔 상단 배너 */
+    #banner {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      padding: 12px 16px;
+      background: rgba(0,0,0,0.85);
+      color: #fff;
+      font-size: 0.95rem;
+      text-align: center;
+      transform: translateY(-120%);
+      opacity: 0;
+      transition: transform 0.35s ease, opacity 0.35s ease;
+      z-index: 999;
+    }
+    #banner.show {
+      transform: translateY(0);
+      opacity: 1;
+    }
   </style>
 </head>
 <body>
+  <div id="banner"></div>
+
   <div class="wrap">
-    <h1>온도 · 착석 상태</h1>
+    <h1>좌석 예약</h1>
 
     <div class="card">
-      <p id="temp"><span class="label">온도:</span> - °C</p>
-      <p id="ac"><span class="label">에어컨:</span> -</p>
-      <p id="seatUsed"><span class="label">착석:</span> -</p>
-      <p id="alarm"><span class="label">알람:</span> -</p>
+      <p id="reserved">예약 상태: -</p>
+      <button id="toggleBtn">예약 ON/OFF</button>
+      <hr />
+      <p id="alarm">알람: -</p>
       <p id="alarmMessage"></p>
     </div>
 
     <div class="links">
       <a href="/">← 메뉴로</a>
-      <a href="/reservation">좌석 예약 페이지로 →</a>
+      <a href="/temperature">온도 · 착석 페이지로 →</a>
     </div>
   </div>
 
   <script>
-    async function fetchStatus() {
+    let prevAlarm = false;
+    let bannerTimer = null;
+
+    function showBanner(message) {
+      const banner = document.getElementById('banner');
+      banner.textContent = message;
+      banner.classList.add('show');
+
+      if (bannerTimer) clearTimeout(bannerTimer);
+      bannerTimer = setTimeout(() => {
+        banner.classList.remove('show');
+      }, 4000);
+    }
+
+    async function refresh() {
       try {
         const res = await fetch('/api/status');
         const data = await res.json();
         const { state } = data;
 
-        const tempEl = document.getElementById('temp');
-        const acEl = document.getElementById('ac');
-        const seatEl = document.getElementById('seatUsed');
+        const reservedEl = document.getElementById('reserved');
         const alarmEl = document.getElementById('alarm');
         const alarmMsgEl = document.getElementById('alarmMessage');
+        const btn = document.getElementById('toggleBtn');
 
-        // seatReserved가 꺼져 있으면 값 안 보여주기
-        if (!state.seatReserved) {
-          tempEl.innerHTML  = '<span class="label">온도:</span> - °C';
-          acEl.innerHTML    = '<span class="label">에어컨:</span> -';
-          seatEl.innerHTML  = '<span class="label">착석:</span> -';
-          alarmEl.innerHTML = '<span class="label">알람:</span> -';
-          alarmEl.className = 'alarm-off';
-          alarmMsgEl.textContent = '';
-          return;
-        }
+        reservedEl.textContent =
+          `예약 상태: ${state.seatReserved ? '예약됨 ✅' : '미예약 ❌'}`;
+        reservedEl.className = state.seatReserved ? 'on' : 'off';
 
-        // 예약 켜져 있을 때만 실제 값 표시
-        tempEl.innerHTML =
-          `<span class="label">온도:</span> ${state.temperature ?? '-'} °C`;
-        acEl.innerHTML =
-          `<span class="label">에어컨:</span> ${state.acOn ? 'ON' : 'OFF'}`;
-        seatEl.innerHTML =
-          `<span class="label">착석:</span> ${
-            state.seatUsed === null ? '-' : (state.seatUsed ? '착석 중' : '자리 비움')
-          }`;
+        btn.textContent = state.seatReserved ? '예약 해제하기' : '예약 걸기';
 
-        if (state.alarm) {
-          alarmEl.innerHTML = '<span class="label">알람:</span> 활성화 ⚠️';
-          alarmEl.className = 'alarm-on';
+        if (state.seatReserved && state.alarm) {
+          alarmEl.textContent = '알람: 활성화 ⚠️';
+          alarmEl.className   = 'alarm-on';
           alarmMsgEl.textContent = '자리에 착석해주세요.';
+
+          if (!prevAlarm) {
+            showBanner('자리에 착석해주세요.');
+          }
         } else {
-          alarmEl.innerHTML = '<span class="label">알람:</span> 비활성';
-          alarmEl.className = 'alarm-off';
+          alarmEl.textContent = '알람: 비활성';
+          alarmEl.className   = 'alarm-off';
           alarmMsgEl.textContent = '';
+          document.getElementById('banner').classList.remove('show');
         }
+
+        prevAlarm = state.alarm;
       } catch (e) {
         console.error(e);
       }
     }
 
+    async function toggle() {
+      await fetch('/api/toggleSeatReserved', { method: 'POST' });
+      await refresh();
+    }
+
+    document.getElementById('toggleBtn').addEventListener('click', toggle);
+
     window.addEventListener('load', () => {
-      fetchStatus();
-      setInterval(fetchStatus, 2000);
+      refresh();
+      setInterval(refresh, 2000);
     });
   </script>
 </body>
