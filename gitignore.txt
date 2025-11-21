@@ -1,0 +1,40 @@
+==============================
+
+Node.js 프로젝트 기본 무시 목록
+
+==============================
+
+종속성 폴더 (설치 시 자동 생성)
+
+/node_modules
+/dist
+/build
+/temp
+
+패키지 관리자 파일
+
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json  # npm 버전 7 이상은 이 파일을 커밋하는 것을 권장하지만, 원치 않을 경우 추가합니다.
+
+==============================
+
+보안 및 로컬 설정 파일 (필수 제외)
+
+==============================
+
+1. Firebase Admin SDK 서비스 계정 키
+
+이 파일은 절대 외부에 노출되어서는 안 됩니다.
+
+firebase-key.json
+.env
+.env.
+.DS_Store
+
+2. 로컬 개발 환경 및 OS 파일
+
+.vscode/
+.idea/
+Thumbs.db
