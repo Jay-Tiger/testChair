@@ -2,148 +2,237 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <title>온도 · 착석 상태</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"> <!-- 반응형 필수 -->
+  <title>데이터 및 설정 관리</title>
   <style>
-    :root {
-      --primary:#007bff;
-      --bg:#f4f4f4;
-      --card-bg:#ffffff;
-    }
-    * { box-sizing: border-box; }
     body {
-      margin: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: var(--bg);
-      color: #222;
-      display: flex;
-      justify-content: center;
-    }
-    .wrap {
-      width: 100%;
-      max-width: 480px;
-      padding: 16px;
-      padding-top: 70px;
-    }
-    h1 {
-      font-size: 1.6rem;
+      font-family: sans-serif;
       text-align: center;
-      margin: 12px 0 12px;
+      margin-top: 30px;
+      background:#f4f4f4;
+      padding: 10px;
     }
+    h1 { font-size: 28px; margin-bottom: 20px; }
     .card {
-      background: var(--card-bg);
-      border-radius: 12px;
-      padding: 16px 18px;
-      box-shadow: 0 2px 8px rgba(0,0,0,.08);
+      display:block;
+      max-width: 400px;
+      margin: 0 auto 20px auto;
+      background:#fff;
+      padding:24px;
+      border-radius:16px;
+      box-shadow:0 4px 12px rgba(0,0,0,.1);
+      text-align:left;
+      font-size: 18px;
     }
-    p {
-      margin: 6px 0;
-      font-size: 0.95rem;
-    }
-    .label {
-      font-weight: 500;
-    }
-    .links {
-      margin-top: 16px;
-      text-align: center;
-      font-size: 0.9rem;
-    }
+    p { margin:12px 0; }
     .links a {
-      color: var(--primary);
-      text-decoration: none;
-      margin: 0 6px;
+      display:block;
+      margin: 15px 0;
+      padding: 12px;
+      text-decoration:none;
+      color:#007bff;
+      font-size: 16px;
+      border: 1px solid #007bff;
+      border-radius: 8px;
     }
+    .config-form label {
+        display: block;
+        margin-top: 15px;
+        font-size: 16px;
+        font-weight: bold;
+    }
+    .config-form input {
+        width: calc(100% - 20px);
+        padding: 10px;
+        margin-top: 5px;
+        border: 1px solid #ccc;
+        border-radius: 6px;
+        font-size: 16px;
+        box-sizing: border-box;
+    }
+    .config-form button {
+        width: 100%;
+        margin-top: 20px;
+        padding: 12px;
+        border: none;
+        border-radius: 8px;
+        background: #28a745;
+        color: #fff;
+        font-size: 18px;
+        cursor: pointer;
+        box-shadow: 0 4px 8px rgba(40, 167, 69, 0.3);
+    }
+    #message {
+        margin-top: 15px;
+        padding: 10px;
+        border-radius: 8px;
+        display: none;
+        font-weight: bold;
+    }
+    .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+    .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
 
-    #banner {
+    /* 🔔 아이폰 스타일 배너 */
+    #alarmBanner {
       position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      padding: 12px 16px;
-      background: rgba(0,0,0,0.85);
-      color: #fff;
-      font-size: 0.95rem;
+      top: -100px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(255,255,255,0.95);
+      padding: 15px 20px;
+      border-radius: 14px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+      font-size: 17px;
+      font-weight: 600;
+      color: #333;
+      transition: all 0.35s ease;
+      z-index: 9999;
+      width: 80%;
+      max-width: 340px;
       text-align: center;
-      transform: translateY(-120%);
-      opacity: 0;
-      transition: transform 0.3s ease, opacity 0.3s ease;
-      z-index: 999;
     }
-    #banner.show {
-      transform: translateY(0);
-      opacity: 1;
+    #alarmBanner.show {
+      top: 30px;
     }
   </style>
 </head>
 <body>
-  <div id="banner"></div>
+  <h1>온도 / 착석 상태 및 설정 관리</h1>
 
-  <div class="wrap">
-    <h1>온도 · 착석 상태</h1>
+  <!-- 🔔 배너 -->
+  <div id="alarmBanner">예약이 취소되었습니다</div>
 
-    <div class="card">
-      <p id="temp"><span class="label">온도:</span> - °C</p>
-      <p id="ac"><span class="label">에어컨:</span> -</p>
-      <p id="seatUsed"><span class="label">착석:</span> -</p>
-    </div>
+  <!-- 1. 현재 상태 표시 -->
+  <div class="card">
+    <h2>현재 상태</h2>
+    <p id="temp">온도: - °C</p>
+    <p id="ac">에어컨: -</p>
+    <p id="seatUsed">착석: -</p>
+  </div>
+  
+  <!-- 2. 설정 관리 폼 -->
+  <div class="card config-form">
+    <h2>에어컨 및 예약 설정</h2>
+    <form id="configForm">
+        <label for="acOnTemp">에어컨 켜짐 온도 (acOnTemp - °C):</label>
+        <input type="number" id="acOnTemp" name="acOnTemp" required step="1">
 
-    <div class="links">
-      <a href="/">← 메뉴로</a>
-      <a href="/reservation">좌석 예약 페이지로 →</a>
-    </div>
+        <label for="acOffTemp">에어컨 꺼짐 온도 (acOffTemp - °C):</label>
+        <input type="number" id="acOffTemp" name="acOffTemp" required step="1">
+
+        <label for="autoUnreserveMinutes">자동 해제 시간 (autoUnreserveMinutes - 분):</label>
+        <input type="number" id="autoUnreserveMinutes" name="autoUnreserveMinutes" required step="0.1">
+
+        <button type="submit">설정 업데이트</button>
+    </form>
+    <div id="message"></div>
+  </div>
+
+  <div class="card links">
+    <a href="/">← 메뉴로</a>
+    <a href="/reservation">좌석 예약 페이지로 →</a>
   </div>
 
   <script>
-    let prevSeatReserved = null;
-    let bannerTimer = null;
+    const tempEl = document.getElementById('temp');
+    const acEl = document.getElementById('ac');
+    const seatEl = document.getElementById('seatUsed');
+    const configForm = document.getElementById('configForm');
+    const msgEl = document.getElementById('message');
 
-    function showBanner(message) {
-      const banner = document.getElementById('banner');
-      banner.textContent = message;
+    let lastAlarmState = false; // 🔔 이전 alarm 상태 저장
+
+    function showBanner() {
+      const banner = document.getElementById('alarmBanner');
       banner.classList.add('show');
-
-      if (bannerTimer) clearTimeout(bannerTimer);
-      bannerTimer = setTimeout(() => {
+      setTimeout(() => {
         banner.classList.remove('show');
-      }, 3000);
+      }, 5000); // 5초 뒤 자동 숨김
     }
 
+    // 상태와 설정값을 함께 가져옵니다.
     async function fetchStatus() {
       try {
         const res = await fetch('/api/status');
         const data = await res.json();
-        const { state } = data;
+        const { state, config } = data;
 
-        const tempEl = document.getElementById('temp');
-        const acEl = document.getElementById('ac');
-        const seatEl = document.getElementById('seatUsed');
-
-        // 예약이 꺼져 있으면 값 감추기
+        // 1. 상태 표시
         if (!state.seatReserved) {
-          tempEl.innerHTML  = '<span class="label">온도:</span> - °C';
-          acEl.innerHTML    = '<span class="label">에어컨:</span> -';
-          seatEl.innerHTML  = '<span class="label">착석:</span> -';
+          tempEl.textContent  = '온도: - °C (예약 미작동)';
+          acEl.textContent    = '에어컨: -';
+          seatEl.textContent  = '착석: -';
         } else {
-          tempEl.innerHTML =
-            `<span class="label">온도:</span> ${state.temperature ?? '-'} °C`;
-          acEl.innerHTML =
-            `<span class="label">에어컨:</span> ${state.acOn ? 'ON' : 'OFF'}`;
-          seatEl.innerHTML =
-            `<span class="label">착석:</span> ${
-              state.seatUsed === null ? '-' : (state.seatUsed ? '착석 중' : '자리 비움')
-            }`;
+          tempEl.textContent =
+            `온도: ${state.temperature ?? '-'} °C`;
+          acEl.textContent =
+            `에어컨: ${state.acOn ? 'ON' : 'OFF'}`;
+          seatEl.textContent =
+            `착석: ${state.seatUsed === null ? '-' : (state.seatUsed ? '착석 중 ✅' : '자리 비움 🪑')}`;
         }
+        
+        // 2. 설정 폼 초기화
+        document.getElementById('acOnTemp').value = config.acOnTemp;
+        document.getElementById('acOffTemp').value = config.acOffTemp;
+        document.getElementById('autoUnreserveMinutes').value = config.autoUnreserveMinutes;
 
-        // 예약 true → false 변할 때마다 배너
-        if (prevSeatReserved === true && state.seatReserved === false) {
-          showBanner('좌석 예약이 취소되었습니다.');
+        // 3. 🔔 alarm 상태에 따라 배너 표시
+        if (state.alarm === true && lastAlarmState === false) {
+          showBanner();
         }
+        lastAlarmState = state.alarm;
 
-        prevSeatReserved = state.seatReserved;
       } catch (e) {
         console.error(e);
+        tempEl.textContent = '상태 로딩 실패';
       }
     }
+    
+    // 설정값 업데이트 처리
+    async function updateConfig(e) {
+        e.preventDefault();
+        
+        const acOnTemp = parseInt(document.getElementById('acOnTemp').value);
+        const acOffTemp = parseInt(document.getElementById('acOffTemp').value);
+        const autoUnreserveMinutes = parseFloat(document.getElementById('autoUnreserveMinutes').value);
+
+        if (isNaN(acOnTemp) || isNaN(acOffTemp) || isNaN(autoUnreserveMinutes)) {
+             showMessage('모든 값을 숫자로 입력해주세요.', 'error');
+             return;
+        }
+
+        const payload = { acOnTemp, acOffTemp, autoUnreserveMinutes };
+
+        try {
+            const res = await fetch('/api/config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            const data = await res.json();
+            
+            if (res.ok) {
+                showMessage('설정이 성공적으로 업데이트되었습니다.', 'success');
+                fetchStatus(); 
+            } else {
+                showMessage(`설정 업데이트 실패: ${data.error || '알 수 없는 오류'}`, 'error');
+            }
+
+        } catch (e) {
+            console.error("Config update error:", e);
+            showMessage('서버 통신 중 오류가 발생했습니다.', 'error');
+        }
+    }
+
+    function showMessage(text, type) {
+        msgEl.textContent = text;
+        msgEl.className = type;
+        msgEl.style.display = 'block';
+        setTimeout(() => msgEl.style.display = 'none', 5000);
+    }
+
+    configForm.addEventListener('submit', updateConfig);
 
     window.addEventListener('load', () => {
       fetchStatus();
