@@ -2,132 +2,98 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <title>testChair 메뉴</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>도서관 IoT 의자</title>
+
   <style>
-    :root {
-      --primary:#007bff;
-      --bg:#f4f4f4;
-      --card-bg:#ffffff;
+    body { 
+        font-family: sans-serif; 
+        text-align: center; 
+        margin-top: 30px; 
+        background:#f4f4f4; 
+        padding: 10px;
     }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: var(--bg);
-      color: #222;
-      display: flex;
-      justify-content: center;
+    h1 { font-size: 28px; margin-bottom: 30px; }
+
+    .links {
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+        max-width: 300px;
+        margin: 0 auto 30px auto;
     }
-    .wrap {
-      width: 100%;
-      max-width: 480px;
-      padding: 16px;
-      padding-top: 70px; /* 배너 공간 */
-    }
-    h1 {
-      font-size: 1.6rem;
-      text-align: center;
-      margin: 12px 0 8px;
-    }
-    .subtitle {
-      text-align: center;
-      font-size: 0.9rem;
-      color: #777;
-      margin-bottom: 16px;
-    }
-    .btn-group {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      margin-bottom: 20px;
-    }
-    .btn {
+    .links a {
       display: block;
-      width: 100%;
-      padding: 14px 16px;
+      padding: 15px 20px;
       border-radius: 10px;
       text-decoration: none;
-      text-align: center;
-      background: var(--primary);
-      color: #fff;
-      font-size: 1rem;
-      font-weight: 500;
-      border: none;
-    }
-    .btn:active {
-      opacity: 0.85;
-      transform: scale(0.98);
-    }
-    .card {
-      background: var(--card-bg);
-      border-radius: 12px;
-      padding: 14px 16px;
-      box-shadow: 0 2px 8px rgba(0,0,0,.08);
-    }
-    .card-title {
-      font-size: 1rem;
-      margin: 0 0 8px;
-      font-weight: 600;
-    }
-    p {
-      margin: 4px 0;
-      font-size: 0.95rem;
+      background:#007bff;
+      color:#fff;
+      font-size: 18px;
+      box-shadow: 0 4px 8px rgba(0, 123, 255, 0.3);
     }
 
-    /* 🔔 상단 배너 */
-    #banner {
+    .card {
+      display:block;
+      max-width: 400px; 
+      margin: 0 auto;
+      background:#fff;
+      padding:24px;
+      border-radius:16px;
+      box-shadow:0 4px 12px rgba(0,0,0,.1);
+      text-align:left;
+      font-size: 18px;
+    }
+
+    /* 🔔 아이폰 스타일 배너 */
+    #alarmBanner {
       position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      padding: 12px 16px;
-      background: rgba(0,0,0,0.85);
-      color: #fff;
-      font-size: 0.95rem;
+      top: -100px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(255,255,255,0.95);
+      padding: 15px 20px;
+      border-radius: 14px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+      font-size: 17px;
+      font-weight: 600;
+      color: #333;
+      transition: all 0.35s ease;
+      z-index: 9999;
+      width: 80%;
+      max-width: 340px;
       text-align: center;
-      transform: translateY(-120%);
-      opacity: 0;
-      transition: transform 0.3s ease, opacity 0.3s ease;
-      z-index: 999;
     }
-    #banner.show {
-      transform: translateY(0);
-      opacity: 1;
+    #alarmBanner.show {
+      top: 30px;
     }
+
   </style>
 </head>
 <body>
-  <div id="banner"></div>
+  <h1>testChair 메뉴</h1>
 
-  <div class="wrap">
-    <h1>testChair 메뉴</h1>
-    <div class="subtitle">기능을 선택하세요.</div>
+  <!-- 🔔 배너 -->
+  <div id="alarmBanner">예약이 취소되었습니다</div>
 
-    <div class="btn-group">
-      <a class="btn" href="/temperature">온도 · 착석 상태 보기</a>
-      <a class="btn" href="/reservation">좌석 예약 설정하기</a>
-    </div>
+  <div class="links">
+    <a href="/temperature">온도/착석 관리 페이지</a>
+    <a href="/reservation">좌석 예약 페이지</a>
+  </div>
 
-    <div class="card">
-      <p class="card-title">현재 상태</p>
-      <p id="reserved">예약 상태: -</p>
-    </div>
+  <div class="card">
+    <p id="reserved">예약 상태: -</p>
   </div>
 
   <script>
-    let prevSeatReserved = null;
-    let bannerTimer = null;
+    let lastAlarmState = false;
 
-    function showBanner(message) {
-      const banner = document.getElementById('banner');
-      banner.textContent = message;
+    function showBanner() {
+      const banner = document.getElementById('alarmBanner');
       banner.classList.add('show');
-
-      if (bannerTimer) clearTimeout(bannerTimer);
-      bannerTimer = setTimeout(() => {
+      setTimeout(() => {
         banner.classList.remove('show');
-      }, 3000); // 3초 후 사라짐
+      }, 5000); // 🔔 5초 뒤 자동 숨김
     }
 
     async function fetchStatus() {
@@ -136,16 +102,15 @@
         const data = await res.json();
         const { state } = data;
 
-        const reservedEl = document.getElementById('reserved');
-        reservedEl.textContent =
+        document.getElementById('reserved').textContent =
           `예약 상태: ${state.seatReserved ? '예약됨 ✅' : '미예약 ❌'}`;
 
-        // 예약 true → false로 변한 순간마다 배너
-        if (prevSeatReserved === true && state.seatReserved === false) {
-          showBanner('좌석 예약이 취소되었습니다.');
+        if (state.alarm === true && lastAlarmState === false) {
+          showBanner();
         }
 
-        prevSeatReserved = state.seatReserved;
+        lastAlarmState = state.alarm;
+
       } catch (e) {
         console.error(e);
       }
@@ -156,5 +121,6 @@
       setInterval(fetchStatus, 2000);
     });
   </script>
+
 </body>
 </html>
