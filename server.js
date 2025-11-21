@@ -1,98 +1,121 @@
 const express = require('express');
 const path = require('path');
+const bodyParser = require('body-parser'); 
+const admin = require('firebase-admin'); 
+const moment = require('moment'); 
+
+const firebaseConfigString = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
+
+// --- 예약 시간 및 주기 설정 ---
+const config = {
+  acOnTemp: 25,
+  acOffTemp: 23,
+  autoUnreserveMinutes: 0.1 
+};
+
+function getUnreserveMs() {
+  return config.autoUnreserveMinutes * 60 * 1000;
+}
+
+// Firebase Admin 초기화
+try {
+    let serviceAccount;
+
+    if (firebaseConfigString) {
+        serviceAccount = JSON.parse(firebaseConfigString);
+        console.log("클라우드 환경: 환경 변수에서 키를 로드합니다.");
+    } else {
+        serviceAccount = require("./firebase-key.json");
+        console.log("로컬 개발 환경: 파일에서 키를 로드합니다.");
+    }
+
+    admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount)
+    });
+    console.log("🔥 Firebase Admin SDK 초기화 성공.");
+} catch (error) {
+    console.warn(`⚠️ Firebase Admin SDK 초기화 실패: ${error.message}`);
+}
 
 const app = express();
 const PORT = process.env.PORT || 8080;
 
-app.use(express.json());
+app.use(bodyParser.json());
 app.use(express.static(path.join(__dirname, 'public')));
-
-// ===================
-// 설정 & 상태
-// ===================
-const config = {
-  acOnTemp: 26,
-  acOffTemp: 24,
-  autoUnreserveSeconds: 10   // 예약 ON + 자리비움 10초 유지 → 자동 해제
-};
 
 const state = {
   temperature: null,
   acOn: false,
   fanOn: false,
-
-  // 착석 상태: true = 앉아있음, false/null = 비어있음으로 취급
   seatUsed: null,
-
-  // 예약 상태
+  alarm: false, 
   seatReserved: false,
-
+  fcmToken: null,
   lastSeatChange: null,
+  alarmTimeoutId: null,
   unreserveTimeoutId: null
 };
 
-// ===================
-// 공통 로직
-// ===================
+function sendFCM(token, title, body, data = {}) {
+    if (!admin.apps.length || !token) return;
+    
+    const message = {
+        notification: { title, body },
+        data: { ...data, timestamp: String(Date.now()) },
+        token: token,
+    };
 
-// 온도 → 에어컨 / 팬 상태 결정
+    admin.messaging().send(message)
+        .then((response) => console.log('FCM 성공:', response))
+        .catch((error) => console.error('FCM 실패:', error));
+}
+
 function updateACLogic(temp) {
-  if (temp == null) return;
+  if (temp == null || !state.seatReserved) return;
 
-  // 🔴 미예약이면 무조건 에어컨/팬 OFF
-  if (!state.seatReserved) {
-    state.acOn = false;
-    state.fanOn = false;
-    return;
-  }
-
-  // ✅ 예약된 상태에서만 온도 기준으로 제어
   if (!state.acOn && temp >= config.acOnTemp) {
     state.acOn = true;
     state.fanOn = true;
-  } else if (state.acOn && temp <= config.acOffTemp) {
+  }
+  else if (state.acOn && temp <= config.acOffTemp) {
     state.acOn = false;
     state.fanOn = false;
   }
 }
 
-// 예약 자동 해제 타이머 설정
-function scheduleAutoUnreserve() {
-  // 기존 타이머가 있으면 제거
-  if (state.unreserveTimeoutId) {
-    clearTimeout(state.unreserveTimeoutId);
-    state.unreserveTimeoutId = null;
-  }
-
-  // 조건: 예약 ON 이고, 자리가 비어 있다고 판단될 때(seatUsed !== true)
-  if (state.seatReserved === true && state.seatUsed !== true) {
-    state.unreserveTimeoutId = setTimeout(() => {
-      // 10초 뒤에도 여전히 조건이 유지되면 예약 해제
-      if (state.seatReserved === true && state.seatUsed !== true) {
-        state.seatReserved = false;
-        state.acOn = false;   // 예약 자동 취소 시 에어컨/팬 OFF
-        state.fanOn = false;
-        console.log('⏰ 10초 동안 착석 없음 → 좌석 예약 자동 취소 (에어컨 OFF)');
-      }
-    }, config.autoUnreserveSeconds * 1000);
-  }
-}
-
-// seatUsed 변경 처리
 function handleSeatChange(seatUsed) {
   const now = Date.now();
+  if (state.seatUsed === seatUsed) return;
+  
   state.seatUsed = seatUsed;
   state.lastSeatChange = now;
 
-  // 자리 상태 바뀔 때마다 자동 취소 타이머 재설정
-  scheduleAutoUnreserve();
+  if (state.unreserveTimeoutId) clearTimeout(state.unreserveTimeoutId);
+  state.unreserveTimeoutId = null;
+  state.alarmTimeoutId = null; 
+  state.alarm = false; 
+
+  if (!seatUsed && state.seatReserved) {
+    state.unreserveTimeoutId = setTimeout(() => {
+      if (state.seatUsed === false && state.seatReserved === true) {
+        state.seatReserved = false;
+        state.alarm = true; 
+        state.acOn = false;
+        state.fanOn = false;
+        
+        if (state.fcmToken) {
+            sendFCM(state.fcmToken, "예약 자동 해제", `장시간 자리 미사용으로 예약이 해제되었습니다.`, { action: 'unreserve_timeout' });
+            state.fcmToken = null;
+        }
+      }
+    }, getUnreserveMs());
+
+  } else if (seatUsed) {
+    state.alarm = false;
+  }
 }
 
-// ===================
-// 아두이노 API
-// ===================
-
-// 아두이노 GET : seatReserved, fanOn 전달
+// 아두이노 GET
 app.get('/api/data', (req, res) => {
   res.json({
     seatReserved: state.seatReserved,
@@ -100,12 +123,11 @@ app.get('/api/data', (req, res) => {
   });
 });
 
-// 아두이노 POST : temperature, seatUsed 수신
+// 아두이노 POST
 app.post('/api/data', (req, res) => {
   const { temperature, seatUsed } = req.body;
   const updated = {};
 
-  // 온도 처리
   if (typeof temperature !== 'undefined') {
     if (typeof temperature !== 'number') {
       return res.status(400).json({ error: 'temperature는 숫자여야 합니다.' });
@@ -117,50 +139,109 @@ app.post('/api/data', (req, res) => {
     updated.fanOn = state.fanOn;
   }
 
-  // 착석 상태 처리
   if (typeof seatUsed !== 'undefined') {
     if (typeof seatUsed !== 'boolean') {
       return res.status(400).json({ error: 'seatUsed는 true/false여야 합니다.' });
     }
     handleSeatChange(seatUsed);
     updated.seatUsed = state.seatUsed;
+    updated.alarm = state.alarm;
   }
 
-  const { unreserveTimeoutId, ...safeState } = state;
+  const { alarmTimeoutId, unreserveTimeoutId, ...safeState } = state;
   res.json({ ok: true, updated, state: safeState });
 });
 
-// ===================
-// 웹 API
-// ===================
+// FCM 토큰 저장
+app.post('/api/saveToken', (req, res) => {
+    const { fcmToken } = req.body;
+    if (fcmToken) {
+        state.fcmToken = fcmToken;
+        res.json({ success: true });
+    } else {
+        res.status(400).json({ success: false });
+    }
+});
 
-// 상태 조회(JSON) – 세 페이지에서 공통 사용
+// Config 변경
+app.post('/api/config', (req, res) => {
+    const { acOnTemp, acOffTemp, autoUnreserveMinutes } = req.body;
+    
+    if (
+      typeof acOnTemp === 'number' &&
+      typeof acOffTemp === 'number' &&
+      typeof autoUnreserveMinutes === 'number'
+    ) {
+        config.acOnTemp = acOnTemp;
+        config.acOffTemp = acOffTemp;
+        config.autoUnreserveMinutes = autoUnreserveMinutes;
+        updateACLogic(state.temperature); 
+        return res.json({ success: true, config });
+    } else {
+        return res.status(400).json({ success: false });
+    }
+});
+
+// 상태 조회
 app.get('/api/status', (req, res) => {
-  const { unreserveTimeoutId, ...safeState } = state;
+  res.setHeader('Content-Type', 'application/json'); 
+  const { alarmTimeoutId, unreserveTimeoutId, ...safeState } = state;
   res.json({ config, state: safeState });
 });
 
-// 예약 ON/OFF 버튼 – 예약 페이지에서 사용
+// 예약 토글
 app.post('/api/toggleSeatReserved', (req, res) => {
-  state.seatReserved = !state.seatReserved;
-  console.log('예약 상태 변경:', state.seatReserved);
+  const { fcmToken } = req.body;
+  
+  const newState = !state.seatReserved;
+  state.seatReserved = newState;
+  
+  if (newState) {
+    state.fcmToken = fcmToken;
+    state.lastSeatChange = Date.now(); 
+    state.alarm = false;
 
-  // 예약을 끈 순간 에어컨/팬 OFF
-  if (!state.seatReserved) {
+    if (state.fcmToken) {
+        sendFCM(state.fcmToken, "좌석 예약 완료", `좌석이 예약되었습니다.`, { action: 'reservation' });
+    }
+
+    if (state.seatUsed === false) {
+        if (state.unreserveTimeoutId) clearTimeout(state.unreserveTimeoutId);
+        
+        state.unreserveTimeoutId = setTimeout(() => {
+            if (state.seatUsed === false && state.seatReserved === true) {
+                state.seatReserved = false;
+                state.alarm = true;
+                state.acOn = false;
+                state.fanOn = false; 
+                
+                if (state.fcmToken) {
+                    sendFCM(state.fcmToken, "예약 자동 해제", `자리 미사용으로 예약이 해제되었습니다.`, { action: 'unreserve_timeout' });
+                    state.fcmToken = null;
+                }
+            }
+        }, getUnreserveMs());
+    }
+
+  } else {
+    if (state.unreserveTimeoutId) clearTimeout(state.unreserveTimeoutId);
+    state.alarmTimeoutId = null; 
+    state.unreserveTimeoutId = null;
+    state.alarm = true;
+    state.fcmToken = null; 
+    
     state.acOn = false;
     state.fanOn = false;
+    
+    if (fcmToken) {
+        sendFCM(fcmToken, "예약 해제 완료", "좌석 예약이 정상적으로 해제되었습니다.", { action: 'cancellation' });
+    }
   }
 
-  // 예약 상태가 바뀌었으니 자동 취소 타이머 다시 검사
-  scheduleAutoUnreserve();
-
-  res.json({ seatReserved: state.seatReserved });
+  res.json({ seatReserved: state.seatReserved, alarm: state.alarm });
 });
 
-// ============================
 // 페이지 라우팅
-// ============================
-
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
@@ -173,10 +254,17 @@ app.get('/reservation', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'reservation.html'));
 });
 
-// ============================
-// 서버 실행
-// ============================
+// 404 처리
+app.use((req, res, next) => {
+    if (req.path.startsWith('/api/')) {
+        return res.status(404).json({ 
+            error: 'Not Found', 
+            message: `API endpoint ${req.path} not found.`
+        });
+    }
+    res.status(404).sendFile(path.join(__dirname, 'public', 'index.html'));
+});
 
 app.listen(PORT, () => {
-  console.log(`🚀 testChair server running on port ${PORT}`);
+  console.log(`server is running on port ${PORT}`);
 });
